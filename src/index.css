@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-raised: #eef0f3;
+  --color-line: #dde1e6;
+  --color-ink: #14181d;
+  --color-muted: #5b6675;
+  --color-accent: #0f766e;
+  --color-accent-soft: #d9f0ed;
+  --color-on-accent: #ffffff;
+  --color-danger: #b42318;
+  --color-warn: #8a5a00;
+  --color-warn-soft: #fdf1d3;
+  --color-ok: #17734a;
+  --color-ok-soft: #dcf3e6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f1216;
+    --color-surface: #181c22;
+    --color-raised: #222831;
+    --color-line: #2c333d;
+    --color-ink: #e8ebef;
+    --color-muted: #9aa5b4;
+    --color-accent: #2bb3a6;
+    --color-accent-soft: #123a37;
+    --color-on-accent: #04201d;
+    --color-danger: #f97066;
+    --color-warn: #f5c451;
+    --color-warn-soft: #3a2f10;
+    --color-ok: #5fd39a;
+    --color-ok-soft: #12321f;
+  }
+}
+
+:root {
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  /* The app is a tool, not a page: no rubber-band scrolling of the frame. */
+  overscroll-behavior: none;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS zooms the page when a focused input has text smaller than 16px. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  /* Let the page flow onto as many sheets as it needs. */
+  html,
+  body,
+  #root {
+    height: auto;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+}
