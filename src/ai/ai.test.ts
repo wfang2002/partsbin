@@ -51,7 +51,9 @@ describe('OpenAiClient', () => {
       model: 'm',
       baseUrl: 'http://localhost:11434/v1/',
     })
-    await expect(client.completeJson({ prompt: 'x' })).rejects.toThrow(/API key/)
+    await expect(client.completeJson({ prompt: 'x' })).rejects.toThrow(
+      /API key.*Incorrect API key provided/,
+    )
     expect(urls).toEqual(['http://localhost:11434/v1/chat/completions'])
   })
 

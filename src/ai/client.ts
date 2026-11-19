@@ -34,7 +34,9 @@ async function openAiError(response: Response): Promise<Error> {
     // No JSON body.
   }
   if (response.status === 401) {
-    return new Error('OpenAI did not accept the API key. Check it in Settings.')
+    return new Error(
+      `OpenAI did not accept the API key.${detail ? ` ${detail}` : ' Check it in Settings.'}`,
+    )
   }
   if (response.status === 429) {
     return new Error(`OpenAI rate or spending limit reached. ${detail}`.trim())
