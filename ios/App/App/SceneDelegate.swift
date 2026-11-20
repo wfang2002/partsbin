@@ -6,6 +6,7 @@ import Capacitor
 class PartsBinViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(OAuthSessionPlugin())
+        bridge?.registerPluginInstance(NiimbotPlugin())
     }
 }
 

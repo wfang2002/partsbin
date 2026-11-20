@@ -33,6 +33,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>PartsBin uses Bluetooth to print box stickers on a NIIMBOT label printer.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>PartsBin uses Bluetooth to print box stickers on a NIIMBOT label printer.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>PartsBin uses the camera to photograph part labels and scan barcodes.</string>
 	<key>UIApplicationSceneManifest</key>

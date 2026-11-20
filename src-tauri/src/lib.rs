@@ -1,3 +1,5 @@
+mod niimbot;
+
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
@@ -162,7 +164,12 @@ pub fn run() {
             secret_set,
             secret_delete,
             oauth_listen,
-            oauth_browse
+            oauth_browse,
+            niimbot::niimbot_scan,
+            niimbot::niimbot_connect,
+            niimbot::niimbot_write,
+            niimbot::niimbot_read,
+            niimbot::niimbot_disconnect
         ])
         .run(tauri::generate_context!())
         .expect("error while running PartsBin");

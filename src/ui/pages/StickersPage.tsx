@@ -6,6 +6,7 @@ import { locationPath, withDescendants, type Inventory } from '../../domain/inve
 import { platformKind } from '../../platform/env'
 import { saveFile } from '../../platform/files'
 import { locationQrPayload } from '../../scan/labelParsers'
+import { LabelPrinterButton } from '../LabelPrinter'
 import { Button, EmptyState, PageHeader, errorText, useToast } from '../kit'
 
 interface Sticker {
@@ -211,6 +212,7 @@ export function StickersPage() {
                     Print {stickers.length} {stickers.length === 1 ? 'sticker' : 'stickers'}
                   </Button>
                 ) : null}
+                <LabelPrinterButton count={stickers.length} art={() => stickers} />
                 {Array.from({ length: sheets }, (_, sheet) => (
                   <Button key={sheet} icon="download" onClick={() => saveSheet(sheet)}>
                     {sheets > 1 ? `Save sheet ${sheet + 1} of ${sheets} as image` : 'Save as image'}
