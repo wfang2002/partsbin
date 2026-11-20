@@ -12,6 +12,7 @@ import {
   Field,
   Input,
   SectionTitle,
+  Select,
   errorText,
   useToast,
 } from '../../kit'
@@ -212,7 +213,7 @@ export function AiSection() {
       setModels(found)
       toast(
         found.length > 0
-          ? `${found.length} models available. Choose one in the Model field.`
+          ? `${found.length} models available. Pick one from the list under Model.`
           : 'The key works, but no usable models were listed.',
       )
     } catch (e) {
@@ -238,26 +239,33 @@ export function AiSection() {
           value={apiKey}
           onChange={(v) => set(KEYS.openaiApiKey, v)}
         />
-        <div className="flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <Field
-              label="Model"
-              hint="Use a model that accepts images. Load the list to see what your key offers."
+        <Field
+          label="Model"
+          hint="Use a model that accepts images. Type a name, or load the list and pick one."
+        >
+          <Input
+            value={modelValue}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="Model name"
+          />
+          {models.length > 0 ? (
+            <Select
+              className="mt-2"
+              aria-label="Models for this key"
+              value={models.includes(modelValue) ? modelValue : ''}
+              onChange={(e) => {
+                if (e.target.value) setModel(e.target.value)
+              }}
             >
-              <Input
-                list="openai-models"
-                value={modelValue}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="Model name"
-              />
-              <datalist id="openai-models">
-                {models.map((id) => (
-                  <option key={id} value={id} />
-                ))}
-              </datalist>
-            </Field>
-          </div>
-        </div>
+              <option value="">{models.length} models for this key</option>
+              {models.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+        </Field>
         <Button small busy={loading} disabled={!apiKey.trim()} onClick={loadModels}>
           Load model list
         </Button>
