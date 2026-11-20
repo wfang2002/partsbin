@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
+use tauri::Manager;
 
 const KEYCHAIN_SERVICE: &str = "PartsBin";
 
@@ -58,6 +59,61 @@ fn handle_redirect(stream: TcpStream) -> Option<String> {
     is_redirect.then_some(target)
 }
 
+fn is_box_return(url: &tauri::Url) -> bool {
+    url.scheme() == "https"
+        && url.host_str() == Some("app.box.com")
+        && url
+            .query_pairs()
+            .any(|(key, _)| key == "code" || key == "error")
+}
+
+/// Open the Box sign-in page and return the redirect URL once Box sends the browser to
+/// https://app.box.com with a code or an error.
+#[tauri::command]
+async fn oauth_browse(app: tauri::AppHandle, url: String) -> Result<String, String> {
+    let start = tauri::Url::parse(&url).map_err(|e| e.to_string())?;
+    if let Some(existing) = app.get_webview_window("box-oauth") {
+        let _ = existing.destroy();
+    }
+    let (tx, rx) = std::sync::mpsc::channel::<Result<String, String>>();
+    let nav_tx = std::sync::Mutex::new(Some(tx.clone()));
+    let window = tauri::WebviewWindowBuilder::new(
+        &app,
+        "box-oauth",
+        tauri::WebviewUrl::External(start),
+    )
+    .title("Sign in to Box")
+    .inner_size(480.0, 760.0)
+    .on_navigation(move |nav| {
+        if !is_box_return(nav) {
+            return true;
+        }
+        if let Ok(mut slot) = nav_tx.lock() {
+            if let Some(sender) = slot.take() {
+                let _ = sender.send(Ok(nav.as_str().to_string()));
+            }
+        }
+        false
+    })
+    .build()
+    .map_err(|e| e.to_string())?;
+    window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            let _ = tx.send(Err("Sign-in was cancelled.".to_string()));
+        }
+    });
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        rx.recv()
+            .unwrap_or_else(|_| Err("Sign-in was cancelled.".to_string()))
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    if let Some(open) = app.get_webview_window("box-oauth") {
+        let _ = open.destroy();
+    }
+    result
+}
+
 /// Wait on localhost for the browser to come back from a cloud sign-in page.
 /// Returns the path and query of the redirect, e.g. "/oauth2redirect?code=...".
 #[tauri::command]
@@ -105,7 +161,8 @@ pub fn run() {
             secret_get,
             secret_set,
             secret_delete,
-            oauth_listen
+            oauth_listen,
+            oauth_browse
         ])
         .run(tauri::generate_context!())
         .expect("error while running PartsBin");

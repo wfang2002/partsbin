@@ -10,7 +10,7 @@ import {
 } from '../../../app/cloud'
 import { useApp, useSyncState } from '../../../app/context'
 import { platformKind } from '../../../platform/env'
-import { oauthRedirectUri } from '../../../platform/oauthFlow'
+import { oauthRedirectToRegister } from '../../../platform/oauthFlow'
 import { openExternal } from '../../../platform/open'
 import type { MigrationProgress, MigrationReport } from '../../../sync/migrate'
 import {
@@ -70,7 +70,7 @@ const GUIDES: Record<ProviderId, SetupGuide> = {
     consoleUrl: 'https://app.box.com/developers/console',
     steps: [
       'Create Platform App > Custom App > User Authentication (OAuth 2.0).',
-      'Under Configuration add the redirect address shown below and enable "Write all files and folders stored in Box".',
+      'Under Configuration, delete the redirect URIs already listed. Add the address shown below and save the page. Enable "Write all files and folders stored in Box".',
       'Paste the client ID and client secret below.',
     ],
     registerRedirect: true,
@@ -268,7 +268,7 @@ function ConnectSheet({
 
   let redirect = ''
   try {
-    redirect = oauthRedirectUri()
+    redirect = oauthRedirectToRegister(id)
   } catch {
     // Browser preview: there is no redirect address.
   }
@@ -306,7 +306,14 @@ function ConnectSheet({
           Open {guide.consoleName}
         </Button>
         {guide.registerRedirect && redirect ? (
-          <Field label="Redirect address to register">
+          <Field
+            label="Redirect address to register"
+            hint={
+              id === 'box'
+                ? 'Save https://app.box.com as the OAuth 2.0 Redirect URI, then save the Configuration page.'
+                : undefined
+            }
+          >
             <Input readOnly value={redirect} onFocus={(e) => e.target.select()} />
           </Field>
         ) : null}

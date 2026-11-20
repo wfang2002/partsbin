@@ -109,8 +109,11 @@ export async function connect(
     throw new Error('Enter the client secret first.')
   }
   const creds = { clientId, clientSecret }
-  const request = await createAuthRequest(service.oauth, creds, oauthRedirectUri())
-  const redirect = await runOAuthFlow(request.url)
+  const request = await createAuthRequest(service.oauth, creds, oauthRedirectUri(id))
+  const redirect = await runOAuthFlow(
+    request.url,
+    id === 'box' ? { httpsRedirect: true } : undefined,
+  )
   const tokens = await completeAuthRequest(
     platformFetch,
     service.oauth,

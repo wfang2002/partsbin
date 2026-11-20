@@ -68,8 +68,8 @@ Files appear in Dropbox > Apps > (your app name) > PartsBin.
 **Box** ([console](https://app.box.com/developers/console))
 
 1. Create Platform App > Custom App > User Authentication (OAuth 2.0).
-2. Configuration: add the same two redirect URIs as for Dropbox, and enable "Write all files and
-   folders stored in Box".
+2. Configuration: OAuth 2.0 Redirect URI. Set it to `https://app.box.com` and save the page.
+   Enable "Write all files and folders stored in Box".
 3. Enter the client ID and client secret in the app.
 
 ### Part lookup (optional)
