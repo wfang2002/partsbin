@@ -39,6 +39,9 @@ import {
   useToast,
 } from '../kit'
 
+/** Longest side of the label photo saved with a photographed bag. */
+const LABEL_THUMB_MAX = 640
+
 const LABEL_SOURCE: Record<ParsedLabel['source'], string> = {
   digikey: 'Read from the Digi-Key barcode.',
   mouser: 'Read from the Mouser barcode.',
@@ -57,8 +60,10 @@ interface Capture {
   candidates: string[]
   status?: string
   warnings: string[]
-  /** The label photo, ready to store. */
+  /** Label photo kept with the bag: longest side 640px. */
   photoJpeg?: Uint8Array
+  /** Larger copy used only to read the label. Not stored. */
+  aiJpeg?: Uint8Array
   photoUrl?: string
   ocrText: string
   /** Part number to look up automatically. */
@@ -127,7 +132,7 @@ export function CapturePage() {
         toast('Add your OpenAI key and choose a model in Settings first.', 'error')
         return
       }
-      const label = await readLabelWithAi(ai, target.photoJpeg, target.ocrText)
+      const label = await readLabelWithAi(ai, target.aiJpeg ?? target.photoJpeg, target.ocrText)
       setCapture((current) => (current ? applyLabel(label, current) : current))
     } catch (e) {
       toast(errorText(e), 'error')
@@ -141,12 +146,17 @@ export function CapturePage() {
       const image = await scanner.capturePhoto()
       if (!image) return
       setReading(true)
-      const [result, photoJpeg] = await Promise.all([readLabel(image), toJpeg(image.blob)])
+      const [result, aiJpeg, photoJpeg] = await Promise.all([
+        readLabel(image),
+        toJpeg(image.blob),
+        toJpeg(image.blob, LABEL_THUMB_MAX),
+      ])
       const next = applyLabel(result.label, {
         ...newCapture(),
         warnings: result.warnings,
         ocrText: result.ocrText,
         photoJpeg,
+        aiJpeg,
         photoUrl: URL.createObjectURL(new Blob([photoJpeg as BlobPart], { type: 'image/jpeg' })),
       })
       setCapture(next)
