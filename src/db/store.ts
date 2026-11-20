@@ -1,3 +1,4 @@
+import type { InboxItem } from '../domain/inbox'
 import {
   BLOB_FIELDS,
   TABLE_NAMES,
@@ -209,5 +210,34 @@ export class Store {
 
   async setMeta(key: string, value: unknown): Promise<void> {
     await this.db.meta.put({ key, value })
+  }
+
+  // ---- Labels waiting to be confirmed ------------------------------------
+
+  async listInbox(): Promise<InboxItem[]> {
+    return this.db.inbox.orderBy('createdAt').toArray()
+  }
+
+  async getInbox(id: string): Promise<InboxItem | undefined> {
+    return this.db.inbox.get(id)
+  }
+
+  async saveInbox(item: InboxItem): Promise<void> {
+    await this.db.inbox.put(item)
+  }
+
+  /**
+   * Drop a waiting label. The photo stays when it now belongs to a saved bag,
+   * or when `keepBlob` is set.
+   */
+  async removeInbox(id: string, keepBlob = false): Promise<void> {
+    const item = await this.db.inbox.get(id)
+    if (!item) return
+    await this.db.inbox.delete(id)
+    if (keepBlob) return
+    const stillUsed = await this.db.inbox.filter((row) => row.photoHash === item.photoHash).count()
+    if (stillUsed > 0) return
+    if ((await this.referencedBlobs()).has(item.photoHash)) return
+    await this.db.blobs.delete(item.photoHash)
   }
 }

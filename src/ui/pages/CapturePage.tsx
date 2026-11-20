@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { readLabelWithAi } from '../../ai/label'
 import { useApp, useSetting } from '../../app/context'
 import { KEYS, fetchPartImage, loadAi, partFieldsFromInfo } from '../../app/services'
 import { recordBag, type PartFields } from '../../domain/actions'
+import { applyReading, newInboxItem, type InboxItem } from '../../domain/inbox'
 import {
   findPartByMpn,
   formatQty,
@@ -15,7 +16,8 @@ import type { PartInfo } from '../../enrich/lookup'
 import { toJpeg } from '../../platform/image'
 import { readLabel, scanner } from '../../scan'
 import { parseLabel, parseLocationQr } from '../../scan/labelParsers'
-import type { ParsedLabel } from '../../scan/types'
+import type { LabelImage, ParsedLabel } from '../../scan/types'
+import { newId } from '../../util/crypto'
 import { LocationSelect } from '../LocationSelect'
 import { LookupControl } from '../LookupControl'
 import {
@@ -26,6 +28,7 @@ import {
   type PartDraft,
 } from '../PartForm'
 import { QuantityInput, type Quantity } from '../StockEditor'
+import { Photo, ZoomablePhoto } from '../Photo'
 import {
   Banner,
   Button,
@@ -101,9 +104,25 @@ export function CapturePage() {
   /** Quantity when adding a bag of a part that is already known. */
   const [fixedQuantity, setFixedQuantity] = useState<Quantity>({})
   const [reading, setReading] = useState(false)
+  const [shooting, setShooting] = useState(false)
+  const [inbox, setInbox] = useState<InboxItem[]>([])
+  /** Waiting label currently open for confirmation. */
+  const [reviewId, setReviewId] = useState<string | null>(null)
+  const reviewIdRef = useRef<string | null>(null)
+  const reviewEdited = useRef(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [session, setSession] = useState<{ partId: string; title: string; where: string }[]>([])
+
+  useEffect(() => {
+    let live = true
+    void store.listInbox().then((rows) => {
+      if (live) setInbox(rows)
+    })
+    return () => {
+      live = false
+    }
+  }, [store])
 
   // Free the preview image when it is replaced or the page closes.
   const photoUrl = capture?.photoUrl
@@ -123,6 +142,31 @@ export function CapturePage() {
     usedAi: base.usedAi || label.source === 'ai',
   })
 
+  const captureFromItem = (item: InboxItem, photoJpeg: Uint8Array, photoUrl: string): Capture => {
+    const next = applyLabel(
+      {
+        source: item.source,
+        mpn: item.mpn,
+        manufacturer: item.manufacturer,
+        description: item.description,
+        category: item.category,
+        qty: item.qty,
+        specs: item.specs,
+        mpnCandidates: item.mpnCandidates,
+        confidence: item.confidence,
+      },
+      {
+        ...newCapture(),
+        warnings: item.warnings,
+        ocrText: item.ocrText,
+        photoJpeg,
+        photoUrl,
+      },
+    )
+    if (item.state === 'reading') next.status = 'Reading the label…'
+    return next
+  }
+
   const readWithAi = async (target: Capture) => {
     if (!target.photoJpeg) return
     setAiBusy(true)
@@ -139,6 +183,115 @@ export function CapturePage() {
     } finally {
       setAiBusy(false)
     }
+  }
+
+  const rememberReading = (id: string, next: InboxItem) => {
+    setInbox((rows) => rows.map((row) => (row.id === id ? next : row)))
+    if (reviewEdited.current || reviewIdRef.current !== id) return
+    setCapture((current) =>
+      current?.photoJpeg && current.photoUrl
+        ? captureFromItem(next, current.photoJpeg, current.photoUrl)
+        : current,
+    )
+  }
+
+  const finishReading = async (id: string, image: LabelImage) => {
+    try {
+      const result = await readLabel(image)
+      const current = await store.getInbox(id)
+      if (!current) return
+      const next = applyReading(current, result)
+      if (!(await store.getInbox(id))) return
+      await store.saveInbox(next)
+      rememberReading(id, next)
+    } catch (e) {
+      const current = await store.getInbox(id)
+      if (!current) return
+      const next = {
+        ...current,
+        state: 'ready' as const,
+        warnings: [...current.warnings, errorText(e)],
+      }
+      await store.saveInbox(next)
+      rememberReading(id, next)
+    }
+  }
+
+  const enqueue = async (image: LabelImage, placeId: string) => {
+    const photoJpeg = await toJpeg(image.blob, LABEL_THUMB_MAX)
+    const photoHash = await store.putBlob(photoJpeg)
+    const item = newInboxItem(newId(), placeId, photoHash)
+    await store.saveInbox(item)
+    setInbox((rows) => [...rows, item])
+    void finishReading(item.id, image)
+  }
+
+  const photographBox = async () => {
+    if (!locationId) {
+      toast('Choose the place these bags go into.', 'error')
+      return
+    }
+    setShooting(true)
+    let added = 0
+    try {
+      for (;;) {
+        const image = await scanner.capturePhoto()
+        if (!image) break
+        await enqueue(image, locationId)
+        added += 1
+      }
+      if (added > 0) {
+        toast(
+          added === 1
+            ? 'Saved 1 label. Confirm it when you are ready.'
+            : `Saved ${added} labels. Confirm them when you are ready.`,
+        )
+      }
+    } catch (e) {
+      toast(errorText(e), 'error')
+    } finally {
+      setShooting(false)
+    }
+  }
+
+  const openReview = async (item: InboxItem) => {
+    const data = await store.getBlob(item.photoHash)
+    if (!data) {
+      toast('That label photo is no longer on this device.', 'error')
+      return
+    }
+    reviewEdited.current = false
+    reviewIdRef.current = item.id
+    setReviewId(item.id)
+    setChosenLocation(item.locationId)
+    setCapture(
+      captureFromItem(
+        item,
+        data,
+        URL.createObjectURL(new Blob([data as BlobPart], { type: 'image/jpeg' })),
+      ),
+    )
+  }
+
+  const closeReview = () => {
+    reviewIdRef.current = null
+    setReviewId(null)
+    setCapture(null)
+  }
+
+  const showNext = async (rest: InboxItem[]) => {
+    setInbox(rest)
+    if (rest[0]) await openReview(rest[0])
+    else closeReview()
+  }
+
+  const discardReview = async () => {
+    if (!reviewId) {
+      setCapture(null)
+      return
+    }
+    await store.removeInbox(reviewId)
+    await showNext((await store.listInbox()).filter((row) => row.id !== reviewId))
   }
 
   const photograph = async () => {
@@ -209,7 +362,8 @@ export function CapturePage() {
         }
         part.ocrText = capture.ocrText.trim().slice(0, 4000) || undefined
         part.source = capture.found?.source ?? (capture.usedAi ? 'ai' : 'manual')
-        if (capture.photoJpeg) labelPhotoBlob = await store.putBlob(capture.photoJpeg)
+        if (reviewId) labelPhotoBlob = (await store.getInbox(reviewId))?.photoHash
+        else if (capture.photoJpeg) labelPhotoBlob = await store.putBlob(capture.photoJpeg)
         const known = fixedPart ?? findPartByMpn(inv, part.mpn)
         if (!known?.imageBlob) {
           part.imageBlob = await fetchPartImage(store, capture.found?.imageUrl)
@@ -230,6 +384,11 @@ export function CapturePage() {
       const known = fixedPart ?? findPartByMpn(inv, part.mpn)
       const title = known ? partTitle(known) : part.mpn || part.description || 'Part'
       toast(`Saved to ${where}`)
+      if (reviewId) {
+        await store.removeInbox(reviewId, true)
+        await showNext(await store.listInbox())
+        return
+      }
       if (fixedPart) {
         navigate(`/part/${fixedPart.id}`, { replace: true })
         return
@@ -243,15 +402,29 @@ export function CapturePage() {
     }
   }
 
-  const setDraft = (draft: PartDraft) =>
+  const setDraft = (draft: PartDraft) => {
+    reviewEdited.current = true
     setCapture((current) => (current ? { ...current, draft } : current))
+  }
   const existing = capture && !fixedPart ? findPartByMpn(inv, capture.draft.mpn) : undefined
 
   return (
     <>
       <PageHeader
-        title={fixedPart ? `Add a bag of ${partTitle(fixedPart)}` : 'Put parts away'}
-        onBack={fixedPart || capture ? () => (capture && !fixedPart ? setCapture(null) : navigate(-1)) : undefined}
+        title={
+          reviewId
+            ? `Confirm label ${Math.max(inbox.findIndex((row) => row.id === reviewId), 0) + 1} of ${inbox.length}`
+            : fixedPart
+              ? `Add a bag of ${partTitle(fixedPart)}`
+              : 'Put parts away'
+        }
+        onBack={
+          reviewId
+            ? closeReview
+            : fixedPart || capture
+              ? () => (capture && !fixedPart ? setCapture(null) : navigate(-1))
+              : undefined
+        }
       />
       <div className="space-y-4 p-3">
         <Card className="p-3">
@@ -285,11 +458,7 @@ export function CapturePage() {
           <>
             <Card className="space-y-3 p-3">
               {capture.photoUrl ? (
-                <img
-                  src={capture.photoUrl}
-                  alt="The label you photographed"
-                  className="max-h-48 w-full rounded-lg object-contain"
-                />
+                <ZoomablePhoto src={capture.photoUrl} alt="The label you photographed" />
               ) : null}
               {capture.status ? (
                 <Banner tone={capture.draft.mpn || capture.draft.description ? 'info' : 'warn'}>
@@ -329,7 +498,8 @@ export function CapturePage() {
                     <LookupControl
                       mpn={capture.draft.mpn}
                       autoMpn={existing ? undefined : capture.autoMpn}
-                      onApply={(info) =>
+                      onApply={(info) => {
+                        reviewEdited.current = true
                         setCapture((current) =>
                           current
                             ? {
@@ -339,14 +509,17 @@ export function CapturePage() {
                               }
                             : current,
                         )
-                      }
+                      }}
                     />
                   </>
                 }
               />
               <QuantityInput
                 value={capture.quantity}
-                onChange={(quantity) => setCapture({ ...capture, quantity })}
+                onChange={(quantity) => {
+                  reviewEdited.current = true
+                  setCapture({ ...capture, quantity })
+                }}
               />
               {capture.ocrText.trim() ? (
                 <details>
@@ -359,21 +532,29 @@ export function CapturePage() {
             </Card>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" icon="check" busy={saving} onClick={save}>
-                Save
+                {reviewId && inbox.length > 1 ? 'Save and next' : 'Save'}
               </Button>
-              <Button variant="ghost" onClick={() => setCapture(null)}>
-                Discard
+              <Button variant="ghost" onClick={() => void discardReview()}>
+                {reviewId ? 'Discard this label' : 'Discard'}
               </Button>
             </div>
           </>
-        ) : reading ? (
+        ) : reading || shooting ? (
           <Card className="flex items-center gap-3 p-4">
             <Spinner />
-            Reading the label
+            {shooting
+              ? 'Saving the label. The camera opens again for the next one. Cancel it when the box is done.'
+              : 'Reading the label'}
           </Card>
         ) : (
           <div className="grid gap-2 sm:grid-cols-3">
-            <Button variant="primary" icon="camera" onClick={photograph} className="min-h-16">
+            <Button variant="primary" icon="camera" onClick={() => void photographBox()} className="min-h-16 sm:col-span-3">
+              Photograph a box
+            </Button>
+            <p className="text-sm text-muted sm:col-span-3">
+              Take a photo of every label in the place above. Confirm each part afterwards.
+            </p>
+            <Button icon="camera" onClick={photograph} className="min-h-16">
               Photograph label
             </Button>
             <Button icon="qr" onClick={scanBarcode} className="min-h-16">
@@ -384,6 +565,42 @@ export function CapturePage() {
             </Button>
           </div>
         )}
+
+        {inbox.length > 0 && !capture ? (
+          <>
+            <SectionTitle>Labels to confirm</SectionTitle>
+            <Card>
+              <ul className="divide-y divide-line">
+                {inbox.map((item) => {
+                  const where = pathLabel(inv, item.locationId)
+                  const name =
+                    item.state === 'reading'
+                      ? 'Reading the label…'
+                      : item.mpn || item.description || 'Label'
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => void openReview(item)}
+                        className="flex w-full items-center gap-3 px-3 py-2 text-left hover:text-accent"
+                      >
+                        <Photo
+                          hash={item.photoHash}
+                          alt={`Label${where ? ` in ${where}` : ''}`}
+                          className="size-14 shrink-0 rounded-lg"
+                        />
+                        <span className="min-w-0">
+                          <span className="block font-medium break-words">{name}</span>
+                          <span className="block text-sm text-muted">{where || 'Choose a place'}</span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          </>
+        ) : null}
 
         {session.length > 0 && !capture ? (
           <>

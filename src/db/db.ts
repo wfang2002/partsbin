@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import type { InboxItem } from '../domain/inbox'
 import type { TableName, TableTypes } from '../domain/types'
 import type { Op, Row } from './merge'
 
@@ -33,6 +34,8 @@ export class PartsDb extends Dexie {
   meta!: Table<MetaRecord, string>
   /** Cloud files whose contents have already been merged in. */
   ingested!: Table<{ path: string }, string>
+  /** Label photos waiting to be confirmed. Device-local, never synced. */
+  inbox!: Table<InboxItem, string>
 
   constructor(name: string) {
     super(name)
@@ -46,6 +49,7 @@ export class PartsDb extends Dexie {
       meta: 'key',
       ingested: 'path',
     })
+    this.version(2).stores({ inbox: 'id, locationId, createdAt' })
   }
 
   rows(table: TableName): Table<Row, string> {

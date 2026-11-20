@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { newInboxItem } from '../domain/inbox'
 import { Hlc } from '../sync/hlc'
 import { applyFields, mergeRow, type Op } from './merge'
 import { Store } from './store'
@@ -133,6 +134,20 @@ describe('Store', () => {
     await store.put('locations', 'l2', { name: 'B', photoBlob: 'gone' })
     await store.remove('locations', 'l2')
     expect([...(await store.referencedBlobs())]).toEqual([hash])
+  })
+
+  it('holds label photos until they are confirmed or discarded', async () => {
+    const store = await freshStore()
+    const hash = await store.putBlob(new Uint8Array([9, 9]))
+    const item = newInboxItem('a', 'loc', hash, 1)
+    await store.saveInbox(item)
+    expect(await store.listInbox()).toEqual([item])
+    await store.removeInbox(item.id, true)
+    expect(await store.getBlob(hash)).toEqual(new Uint8Array([9, 9]))
+    await store.saveInbox(item)
+    await store.removeInbox(item.id)
+    expect(await store.listInbox()).toEqual([])
+    expect(await store.getBlob(hash)).toBeUndefined()
   })
 
   it('keeps its device ID and clock across reopen', async () => {
