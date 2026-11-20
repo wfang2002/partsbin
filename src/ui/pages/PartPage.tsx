@@ -122,24 +122,35 @@ export function PartPage() {
         <SectionTitle>Where it is</SectionTitle>
         <p className="mb-2 text-sm text-muted">{total}</p>
         <ul className="space-y-2">
-          {stock.map((s) => (
+          {stock.map((s) => {
+            const where = pathLabel(inv, s.locationId)
+            return (
             <li key={s.id} className="flex items-stretch gap-2">
+              {s.labelPhotoBlob ? (
+                <Photo
+                  hash={s.labelPhotoBlob}
+                  alt={`Label of the bag in ${where}`}
+                  zoomable
+                  className="size-16 shrink-0 rounded-lg"
+                />
+              ) : null}
               <Link
                 to={`/locations/${s.locationId}`}
                 className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
               >
                 <Icon name="box" className="text-accent" />
-                <span className="min-w-0 flex-1">{pathLabel(inv, s.locationId)}</span>
+                <span className="min-w-0 flex-1">{where}</span>
                 <span className="text-sm text-muted">{formatQty(s) || 'not counted'}</span>
               </Link>
               <Button
                 icon="edit"
-                aria-label={`Change the bag in ${pathLabel(inv, s.locationId)}`}
+                aria-label={`Change the bag in ${where}`}
                 onClick={() => setEditingStock(s)}
                 className="!min-h-0"
               />
             </li>
-          ))}
+            )
+          })}
         </ul>
         <Button className="mt-3" icon="plus" onClick={() => navigate(`/add?part=${part.id}`)}>
           Add a bag of this part
