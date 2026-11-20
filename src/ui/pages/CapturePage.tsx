@@ -48,7 +48,7 @@ const LABEL_THUMB_MAX = 640
 const LABEL_SOURCE: Record<ParsedLabel['source'], string> = {
   digikey: 'Read from the Digi-Key barcode.',
   mouser: 'Read from the Mouser barcode.',
-  lcsc: 'Read from the LCSC QR code.',
+  lcsc: 'Read from the LCSC label.',
   barcode: 'Read from the barcode.',
   ocr: 'Read from the printed text. Check the part number.',
   ai: 'Read by AI. Check the details.',
@@ -71,8 +71,18 @@ interface Capture {
   ocrText: string
   /** Part number to look up automatically. */
   autoMpn?: string
+  /** C-code and manufacturer part number when the label says LCSC.COM. */
+  lcscLookup?: { code?: string; pn?: string }
   usedAi: boolean
   found?: PartInfo
+}
+
+function lcscLookupOf(label: ParsedLabel): { code?: string; pn?: string } | undefined {
+  if (label.source !== 'lcsc') return undefined
+  const code = label.distributorPn
+  const pn = label.mpn && label.mpn.toUpperCase() !== code?.toUpperCase() ? label.mpn : undefined
+  if (!code && !pn) return undefined
+  return { code, pn }
 }
 
 const labelToFields = (label: ParsedLabel): PartFields => ({
@@ -138,7 +148,13 @@ export function CapturePage() {
       (c) => c !== label.mpn,
     ),
     status: LABEL_SOURCE[label.source],
-    autoMpn: label.mpn && label.confidence === 'high' ? label.mpn : base.autoMpn,
+    lcscLookup: lcscLookupOf(label),
+    autoMpn:
+      label.source === 'lcsc'
+        ? undefined
+        : label.mpn && label.confidence === 'high'
+          ? label.mpn
+          : base.autoMpn,
     usedAi: base.usedAi || label.source === 'ai',
   })
 
@@ -151,6 +167,7 @@ export function CapturePage() {
         description: item.description,
         category: item.category,
         qty: item.qty,
+        distributorPn: item.distributorPn,
         specs: item.specs,
         mpnCandidates: item.mpnCandidates,
         confidence: item.confidence,
@@ -497,6 +514,8 @@ export function CapturePage() {
                     ) : null}
                     <LookupControl
                       mpn={capture.draft.mpn}
+                      lcsc={capture.lcscLookup}
+                      autoLcsc={!existing && Boolean(capture.lcscLookup)}
                       autoMpn={existing ? undefined : capture.autoMpn}
                       onApply={(info) => {
                         reviewEdited.current = true

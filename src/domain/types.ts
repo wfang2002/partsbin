@@ -21,7 +21,7 @@ export interface Location {
   note?: string
 }
 
-export type PartSource = 'digikey' | 'mouser' | 'ai' | 'manual'
+export type PartSource = 'digikey' | 'mouser' | 'lcsc' | 'ai' | 'manual'
 
 export interface Part {
   id: string

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { listOpenAiModels } from '../../../ai/client'
 import { useApp, useSetting } from '../../../app/context'
 import { KEYS, lookupOnline } from '../../../app/services'
+import { LOOKUP_SOURCE_NAME } from '../../../enrich/lookup'
 import { platformFetch } from '../../../platform/http'
 import { openExternal } from '../../../platform/open'
 import { secrets, secretsAreSecure } from '../../../platform/secrets'
@@ -104,7 +105,7 @@ export function LookupSection() {
         setResult({
           tone: errors.length > 0 ? 'warn' : 'ok',
           text: [
-            `Found ${info.mpn} at ${info.source === 'digikey' ? 'Digi-Key' : 'Mouser'}: ${info.description ?? 'no description'}.`,
+            `Found ${info.mpn} at ${LOOKUP_SOURCE_NAME[info.source]}: ${info.description ?? 'no description'}.`,
             ...errors,
           ].join(' '),
         })
@@ -123,8 +124,9 @@ export function LookupSection() {
       <SectionTitle>Part lookup</SectionTitle>
       <Card className="space-y-3 p-4">
         <p className="text-sm text-muted">
-          With a free API key from Digi-Key or Mouser, PartsBin fills in the description,
-          specifications and datasheet link from the part number. {SECRET_HINT}
+          PartsBin looks the part number up at LCSC with no key, and at Digi-Key or Mouser
+          when you add a free API key. An exact match fills in the description, specifications
+          and datasheet link. {SECRET_HINT}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button small icon="link" onClick={() => open('https://developer.digikey.com/')}>

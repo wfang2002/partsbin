@@ -3,7 +3,7 @@ import type { Barcode } from '../types'
 import { parseAnsiFields, parseAnsiLabel, parseLinearField } from './ansi'
 import { parseGenericText } from './generic'
 import { locationQrPayload, parseLabel, parseLocationQr } from './index'
-import { parseLcscLabel } from './lcsc'
+import { parseLcscLabel, parseLcscPrinted } from './lcsc'
 
 const GS = '\x1d'
 const RS = '\x1e'
@@ -112,6 +112,54 @@ describe('LCSC labels', () => {
   it('rejects other text', () => {
     expect(parseLcscLabel('{"json": true}')).toBeNull()
     expect(parseLcscLabel('C1525')).toBeNull()
+    expect(parseLcscPrinted('C1525\nCL05B104KO5NNNC')).toBeNull()
+  })
+
+  it('reads a printed label that says LCSC.COM', () => {
+    const text = ['www.LCSC.COM', 'C1525', 'P/N: CL05B104KO5NNNC', '100nF 16V 0402', 'QTY: 100'].join(
+      '\n',
+    )
+    expect(parseLcscPrinted(text)).toMatchObject({
+      source: 'lcsc',
+      distributorPn: 'C1525',
+      mpn: 'CL05B104KO5NNNC',
+      qty: 100,
+      confidence: 'high',
+      specs: { LCSC: 'C1525' },
+    })
+  })
+
+  it('reads a photographed LCSC bag whose part number was cut off by OCR', () => {
+    const text = [
+      '25-D03-Q',
+      'C77801',
+      'MER P/N: CS1237-So',
+      'Customer No: -',
+      'Description:24 1 SPI SOP-',
+      '8_15emil Analog To Digita',
+      'L Converters (ADC. ..',
+      'SO1911063623',
+      '1106-0043',
+      'QTY: 40',
+      'SOP-8_150',
+      'mil',
+      '85/9F',
+      'LCSC.COM',
+    ].join('\n')
+    expect(parseLabel([], text)).toMatchObject({
+      source: 'lcsc',
+      distributorPn: 'C77801',
+      mpn: 'CS1237-So',
+      qty: 40,
+    })
+  })
+
+  it('reads an unlabelled C-code and part number under LCSC.COM', () => {
+    expect(parseLcscPrinted('LCSC.COM\nC25804\nRC0603FR-0710KL')).toMatchObject({
+      source: 'lcsc',
+      distributorPn: 'C25804',
+      mpn: 'RC0603FR-0710KL',
+    })
   })
 })
 
@@ -198,6 +246,29 @@ describe('parseLabel', () => {
       mpn: 'SN74HC595DR',
       qty: 25,
       confidence: 'high',
+    })
+  })
+
+  it('uses LCSC when the printed label says LCSC.COM', () => {
+    const text = 'LCSC.COM\nC1525\nP/N: CL05B104KO5NNNC\nQTY: 20'
+    const label = parseLabel([], text)
+    expect(label).toMatchObject({
+      source: 'lcsc',
+      distributorPn: 'C1525',
+      mpn: 'CL05B104KO5NNNC',
+      qty: 20,
+    })
+  })
+
+  it('keeps the QR C-code and part number when the bag also says LCSC.COM', () => {
+    const qr =
+      '{pbn:PICK2009291337,on:SO2009291337,pc:C1525,pm:CL05B104KO5NNNC,qty:500,mc:,cc:1,pdi:34421807}'
+    const label = parseLabel([code(qr, 'QRCode')], 'www.LCSC.COM\nC1525\nCL05B104KO5NNNC')
+    expect(label).toMatchObject({
+      source: 'lcsc',
+      distributorPn: 'C1525',
+      mpn: 'CL05B104KO5NNNC',
+      qty: 500,
     })
   })
 

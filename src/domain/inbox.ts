@@ -17,6 +17,8 @@ export interface InboxItem {
   source: ParsedLabel['source']
   confidence: ParsedLabel['confidence']
   qty?: number
+  /** LCSC C-code, when the label is from LCSC. */
+  distributorPn?: string
   /** Reading while the label is being recognized. */
   state: 'reading' | 'ready'
 }
@@ -61,6 +63,7 @@ export function applyReading(
     source: label.source,
     confidence: label.confidence,
     qty: label.qty,
+    distributorPn: label.distributorPn,
     state: 'ready',
   }
 }

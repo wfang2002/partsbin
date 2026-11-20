@@ -1,7 +1,7 @@
 import { emptyLabel, type Barcode, type ParsedLabel } from '../types'
 import { parseAnsiLabel, parseLinearField } from './ansi'
 import { parseGenericText } from './generic'
-import { parseLcscLabel } from './lcsc'
+import { parseLcscLabel, parseLcscPrinted } from './lcsc'
 
 /** Payload of the QR stickers PartsBin prints for boxes. */
 const LOCATION_QR_RE = /^PB:L:([0-9a-f]{8,})$/
@@ -17,10 +17,34 @@ export function parseLocationQr(text: string): string | null {
 
 /**
  * Combine everything read from one label photo. Barcodes are trusted over
- * printed text; OCR fills in what the barcodes do not say.
+ * printed text, except a label that says LCSC.COM: that is looked up at LCSC
+ * from its C-code. OCR fills in what the barcodes do not say.
  */
+function lcscLabel(fromCode: ParsedLabel | null, printed: ParsedLabel): ParsedLabel {
+  const fromQr = fromCode?.source === 'lcsc' ? fromCode : null
+  const distributorPn = fromQr?.distributorPn ?? printed.distributorPn
+  const partNumber = [fromQr?.mpn, printed.mpn].find(
+    (value) => value && value.toUpperCase() !== distributorPn,
+  )
+  return {
+    ...printed,
+    ...fromQr,
+    source: 'lcsc',
+    confidence: 'high',
+    distributorPn,
+    mpn: partNumber ?? distributorPn ?? printed.mpn,
+    qty: fromQr?.qty ?? printed.qty ?? fromCode?.qty,
+    manufacturer: fromQr?.manufacturer ?? printed.manufacturer ?? fromCode?.manufacturer,
+    description: fromQr?.description ?? printed.description ?? fromCode?.description,
+    specs: { ...printed.specs, ...fromQr?.specs },
+    mpnCandidates: [printed.mpn, ...printed.mpnCandidates, ...fromCode?.mpnCandidates ?? []]
+      .filter((candidate): candidate is string => Boolean(candidate) && candidate !== partNumber && candidate !== distributorPn)
+      .slice(0, 6),
+  }
+}
 export function parseLabel(barcodes: Barcode[], ocrText: string): ParsedLabel {
   const fromText = parseGenericText(ocrText)
+  const printedLcsc = parseLcscPrinted(ocrText)
 
   let fromCode: ParsedLabel | null = null
   for (const { text } of barcodes) {
@@ -44,6 +68,8 @@ export function parseLabel(barcodes: Barcode[], ocrText: string): ParsedLabel {
       fromText.qty = linear.qty
     }
   }
+
+  if (printedLcsc) return lcscLabel(fromCode, printedLcsc)
 
   if (!fromCode) return fromText
 

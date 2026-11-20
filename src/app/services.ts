@@ -1,7 +1,13 @@
 import { OpenAiClient, type AiClient } from '../ai/client'
 import type { Store } from '../db/store'
 import type { PartFields } from '../domain/actions'
-import { DigiKeyClient, lookupPart, type LookupKeys, type PartInfo } from '../enrich/lookup'
+import {
+  DigiKeyClient,
+  lookupLcscLabel,
+  lookupPart,
+  type LookupKeys,
+  type PartInfo,
+} from '../enrich/lookup'
 import { platformFetch } from '../platform/http'
 import { toJpeg } from '../platform/image'
 import { secrets } from '../platform/secrets'
@@ -39,6 +45,11 @@ export async function lookupOnline(mpn: string) {
     lookupCache.forClientId = keys.digikey?.clientId
   }
   return lookupPart(platformFetch, keys, mpn, lookupCache)
+}
+
+/** LCSC label: C-code first, then the manufacturer part number. */
+export function lookupLcscOnline(code: string | undefined, mpn: string | undefined) {
+  return lookupLcscLabel(platformFetch, code, mpn)
 }
 
 /** The configured AI client, or null when no key or model is set. */
