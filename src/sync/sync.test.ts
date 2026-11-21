@@ -147,6 +147,23 @@ describe('syncOnce', () => {
     expect(await desktop.getBlob(hash)).toEqual(photo)
   })
 
+  it('replaces a cloud photo whose size does not match the local one', async () => {
+    const cloud = new MemoryProvider()
+    const phone = await device()
+    const desktop = await device()
+    const photo = new Uint8Array([1, 2, 3, 4])
+    const hash = await phone.putBlob(photo)
+    await phone.put('locations', 'box1', { name: 'Box 1', kind: 'box', parentId: null, photoBlob: hash })
+    await syncOnce(phone, cloud)
+    cloud.files.set(blobPath(hash), new Uint8Array([9, 9]))
+    const up = await syncOnce(phone, cloud)
+    expect(up.blobsUploaded).toBe(1)
+    expect(cloud.files.get(blobPath(hash))).toEqual(photo)
+    const down = await syncOnce(desktop, cloud)
+    expect(down.blobsDownloaded).toBe(1)
+    expect(await desktop.getBlob(hash)).toEqual(photo)
+  })
+
   it('rejects a photo that was damaged in the cloud', async () => {
     const cloud = new MemoryProvider()
     const phone = await device()

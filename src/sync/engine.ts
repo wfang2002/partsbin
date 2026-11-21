@@ -353,12 +353,19 @@ async function uploadBlobs(
   const remote = remoteBlobs(files)
   const referenced = await store.referencedBlobs()
   const local = new Set(await store.db.blobs.toCollection().primaryKeys())
-  const toUpload = [...referenced].filter((h) => local.has(h) && !remote.has(h))
+  // A matching name is not enough. An older iPhone build uploaded photos as
+  // text, so the cloud file can be larger than the JPEG it was named for.
+  const toUpload = [...referenced].filter((h) => local.has(h))
   await pooled(toUpload, 3, async (hash) => {
     const data = await store.getBlob(hash)
     if (!data) return
+    if (remote.get(hash) === data.length) return
     await provider.write(blobPath(hash), data)
-    files.push({ path: blobPath(hash), size: data.length })
+    const path = blobPath(hash)
+    const info = files.find((f) => f.path === path)
+    if (info) info.size = data.length
+    else files.push({ path, size: data.length })
+    remote.set(hash, data.length)
     report.blobsUploaded += 1
   })
 }
@@ -390,13 +397,14 @@ async function downloadBlobs(
   )
 }
 
-function remoteBlobs(files: FileInfo[]): Set<string> {
-  const hashes = new Set<string>()
+/** Hash to byte size for photos already in the cloud folder. */
+function remoteBlobs(files: FileInfo[]): Map<string, number> {
+  const sizes = new Map<string, number>()
   for (const f of files) {
     const match = BLOB_RE.exec(f.path)
-    if (match) hashes.add(match[1])
+    if (match) sizes.set(match[1], f.size)
   }
-  return hashes
+  return sizes
 }
 
 async function hasRows(store: Store): Promise<boolean> {

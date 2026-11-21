@@ -1,16 +1,9 @@
 import { CapacitorHttp, type HttpResponse } from '@capacitor/core'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { fromBase64, utf8 } from '../util/crypto'
+import { fromBase64, toBase64, utf8 } from '../util/crypto'
 import { platformKind } from './env'
 
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>
-
-/**
- * Capacitor's fetch patch sends these methods through WKWebView. The web view
- * removes Authorization before the request is sent, so OpenAI (and the cloud
- * APIs) answer 401. The native plugin keeps the header.
- */
-const WEBVIEW_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE'])
 
 function plainHeaders(headers: HeadersInit | undefined): Record<string, string> {
   const out: Record<string, string> = {}
@@ -47,13 +40,29 @@ export function responseFromCapacitor(result: HttpResponse): Response {
   return new Response(copy, { status: result.status, headers })
 }
 
+/** Bytes of a request body. Uint8Array is kept as-is, not decoded as text. */
+export async function bytesOfBody(body: BodyInit): Promise<Uint8Array> {
+  if (typeof body === 'string') return utf8.encode(body)
+  if (body instanceof Uint8Array) return body
+  if (body instanceof ArrayBuffer) return new Uint8Array(body)
+  if (ArrayBuffer.isView(body)) {
+    return new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
+  }
+  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer())
+  if (body instanceof URLSearchParams) return utf8.encode(body.toString())
+  throw new Error('This request body cannot be sent.')
+}
+
 async function iosFetch(input: string, init?: RequestInit): Promise<Response> {
-  const method = (init?.method ?? 'GET').toUpperCase()
-  if (!WEBVIEW_METHODS.has(method)) return fetch(input, init)
+  // The patched fetch turns a Uint8Array into text, which destroys JPEG bytes.
+  // Base64 with dataType "file" is handed to URLSession unchanged.
+  const body = init?.body
   const result = await CapacitorHttp.request({
     url: input,
-    method,
+    method: (init?.method ?? 'GET').toUpperCase(),
     headers: plainHeaders(init?.headers),
+    data: body == null ? undefined : toBase64(await bytesOfBody(body)),
+    dataType: body == null ? undefined : 'file',
     responseType: 'arraybuffer',
   })
   return responseFromCapacitor(result)
@@ -74,8 +83,8 @@ export function desktopInit(init?: RequestInit): RequestInit {
  * HTTP that is not subject to browser cross-origin rules, so distributor and
  * cloud APIs can be called directly.
  * - desktop: requests go through Rust.
- * - ios: GET goes through the Capacitor HTTP plugin so Authorization is kept;
- *   other methods already do, via the patched fetch.
+ * - ios: every request goes through the Capacitor HTTP plugin, so Authorization
+ *   is kept and photo bytes are not decoded as text.
  * - browser: plain fetch; APIs without CORS headers will fail there.
  */
 export const platformFetch: Fetch =

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { toBase64 } from '../util/crypto'
-import { desktopInit, responseFromCapacitor } from './http'
+import { fromBase64, toBase64, utf8 } from '../util/crypto'
+import { bytesOfBody, desktopInit, responseFromCapacitor } from './http'
 
 /** What the Tauri HTTP plugin keeps after it copies headers off the Request. */
 function headersAfterPlugin(init?: RequestInit): Headers {
@@ -27,6 +27,16 @@ describe('desktopInit', () => {
     })
     expect(headers.get('origin')).toBe('https://www.lcsc.com')
     expect(headers.get('accept')).toBe('application/json')
+  })
+})
+
+describe('bytesOfBody', () => {
+  it('keeps JPEG bytes that are not valid text', async () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0x00, 0x80])
+    expect(await bytesOfBody(jpeg)).toEqual(jpeg)
+    // Decoding those bytes as text and encoding again is not the same photo.
+    expect(utf8.encode(utf8.decode(jpeg))).not.toEqual(jpeg)
+    expect(fromBase64(toBase64(jpeg))).toEqual(jpeg)
   })
 })
 
