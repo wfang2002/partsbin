@@ -13,6 +13,7 @@ import type { Part } from '../../domain/types'
 import { scanner } from '../../scan'
 import { parseLabel, parseLocationQr } from '../../scan/labelParsers'
 import { search } from '../../search'
+import { Photo } from '../Photo'
 import {
   Banner,
   Button,
@@ -188,29 +189,47 @@ export function PartResult({
   note?: string
 }) {
   const stock = inv.stockByPart.get(part.id) ?? []
+  const title = partTitle(part)
+  const thumb = part.imageBlob ?? stock.find((s) => s.labelPhotoBlob)?.labelPhotoBlob
   const subtitle = [part.manufacturer, part.mpn ? part.description : undefined]
     .filter(Boolean)
     .join(' · ')
   return (
     <Link
       to={`/part/${part.id}`}
-      className="block rounded-xl border border-line bg-surface p-3 hover:border-accent"
+      className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
     >
-      <span className="block font-medium break-words">{partTitle(part)}</span>
-      {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
-      {note ? <span className="mt-1 block text-sm">{note}</span> : null}
-      <span className="mt-2 block space-y-1">
-        {stock.length === 0 ? (
-          <span className="block text-sm text-muted">No stock recorded</span>
+      <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-raised">
+        {thumb ? (
+          <Photo
+            hash={thumb}
+            alt={`Photo of ${title}`}
+            fit="contain"
+            className="absolute inset-0 size-full"
+          />
         ) : (
-          stock.map((s) => (
-            <span key={s.id} className="flex items-baseline gap-2 text-sm">
-              <Icon name="box" className="size-4 translate-y-0.5 text-accent" />
-              <span className="min-w-0 flex-1">{pathLabel(inv, s.locationId)}</span>
-              <span className="text-muted">{formatQty(s) || 'not counted'}</span>
-            </span>
-          ))
+          <span className="flex size-full items-center justify-center text-muted">
+            <Icon name="box" className="size-6" />
+          </span>
         )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium break-words">{title}</span>
+        {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
+        {note ? <span className="mt-1 block text-sm">{note}</span> : null}
+        <span className="mt-2 block space-y-1">
+          {stock.length === 0 ? (
+            <span className="block text-sm text-muted">No stock recorded</span>
+          ) : (
+            stock.map((s) => (
+              <span key={s.id} className="flex items-baseline gap-2 text-sm">
+                <Icon name="box" className="size-4 translate-y-0.5 text-accent" />
+                <span className="min-w-0 flex-1">{pathLabel(inv, s.locationId)}</span>
+                <span className="text-muted">{formatQty(s) || 'not counted'}</span>
+              </span>
+            ))
+          )}
+        </span>
       </span>
     </Link>
   )
