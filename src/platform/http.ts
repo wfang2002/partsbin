@@ -60,6 +60,17 @@ async function iosFetch(input: string, init?: RequestInit): Promise<Response> {
 }
 
 /**
+ * The desktop HTTP plugin adds `Origin: tauri://localhost` when the request
+ * has none. Box rejects that origin. An empty Origin is the plugin's signal
+ * to leave the header off. A caller-supplied Origin, such as LCSC's, is kept.
+ */
+export function desktopInit(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers)
+  if (!headers.has('origin')) headers.set('origin', '')
+  return { ...init, headers }
+}
+
+/**
  * HTTP that is not subject to browser cross-origin rules, so distributor and
  * cloud APIs can be called directly.
  * - desktop: requests go through Rust.
@@ -69,7 +80,7 @@ async function iosFetch(input: string, init?: RequestInit): Promise<Response> {
  */
 export const platformFetch: Fetch =
   platformKind === 'desktop'
-    ? (input, init) => tauriFetch(input, init)
+    ? (input, init) => tauriFetch(input, desktopInit(init))
     : platformKind === 'ios'
       ? iosFetch
       : (input, init) => fetch(input, init)

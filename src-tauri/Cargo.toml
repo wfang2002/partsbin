@@ -16,7 +16,9 @@ tauri-build = { version = "2", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2", features = [] }
-tauri-plugin-http = "2"
+# unsafe-headers lets a request set Origin. An empty Origin is removed, so
+# Box does not see tauri://localhost and reject the call.
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"

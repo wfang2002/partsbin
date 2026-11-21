@@ -1,6 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import { toBase64 } from '../util/crypto'
-import { responseFromCapacitor } from './http'
+import { desktopInit, responseFromCapacitor } from './http'
+
+/** What the Tauri HTTP plugin keeps after it copies headers off the Request. */
+function headersAfterPlugin(init?: RequestInit): Headers {
+  const prepared = desktopInit(init)
+  const headers =
+    prepared.headers instanceof Headers ? prepared.headers : new Headers(prepared.headers)
+  const req = new Request('https://api.box.com/2.0/folders/0/items', prepared)
+  for (const [key, value] of req.headers) {
+    if (!headers.get(key)) headers.set(key, value)
+  }
+  return headers
+}
+
+describe('desktopInit', () => {
+  it('asks the desktop client to omit Origin on a normal request', () => {
+    const headers = headersAfterPlugin({ headers: { Authorization: 'Bearer token' } })
+    expect(headers.get('authorization')).toBe('Bearer token')
+    expect(headers.get('origin')).toBe('')
+  })
+
+  it('keeps an Origin the caller set', () => {
+    const headers = headersAfterPlugin({
+      headers: { Origin: 'https://www.lcsc.com', Accept: 'application/json' },
+    })
+    expect(headers.get('origin')).toBe('https://www.lcsc.com')
+    expect(headers.get('accept')).toBe('application/json')
+  })
+})
 
 describe('responseFromCapacitor', () => {
   it('rebuilds JSON that the native client already parsed', async () => {
