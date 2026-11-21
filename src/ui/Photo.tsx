@@ -36,7 +36,13 @@ export function Photo({
       </button>
       {zoomed ? (
         <Sheet title={alt} onClose={() => setZoomed(false)} wide>
-          <img src={url} alt={alt} className="mx-auto max-h-[75dvh] rounded-lg" />
+          <ZoomablePhoto
+            src={url}
+            alt={alt}
+            frameClassName="h-[65dvh]"
+            hint="Pinch or double-tap to enlarge."
+            subject="the photo"
+          />
         </Sheet>
       ) : null}
     </>
@@ -47,7 +53,19 @@ const MIN_SCALE = 1
 const MAX_SCALE = 6
 
 /** A photo the user can enlarge and pan, leaving the rest of the page visible. */
-export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
+export function ZoomablePhoto({
+  src,
+  alt,
+  frameClassName = 'h-64',
+  hint = 'Pinch or double-tap to enlarge the label.',
+  subject = 'the label',
+}: {
+  src: string
+  alt: string
+  frameClassName?: string
+  hint?: string
+  subject?: string
+}) {
   const frame = useRef<HTMLDivElement>(null)
   const view = useRef({ scale: 1, x: 0, y: 0 })
   const [shown, setShown] = useState(view.current)
@@ -153,7 +171,7 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
     <div className="space-y-2">
       <div
         ref={frame}
-        className="relative h-64 touch-none overflow-hidden rounded-lg bg-raised"
+        className={cx('relative touch-none overflow-hidden rounded-lg bg-raised', frameClassName)}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -170,12 +188,12 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
         />
       </div>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted">Pinch or double-tap to enlarge the label.</p>
+        <p className="text-sm text-muted">{hint}</p>
         <div className="flex shrink-0 gap-1">
           <Button
             small
             disabled={shown.scale <= MIN_SCALE}
-            aria-label="Make the label smaller"
+            aria-label={`Make ${subject} smaller`}
             onClick={() => apply(shown.scale / 1.5, shown.x, shown.y)}
           >
             Smaller
@@ -183,7 +201,7 @@ export function ZoomablePhoto({ src, alt }: { src: string; alt: string }) {
           <Button
             small
             disabled={shown.scale >= MAX_SCALE}
-            aria-label="Enlarge the label"
+            aria-label={`Enlarge ${subject}`}
             onClick={() => apply(shown.scale * 1.5, shown.x, shown.y)}
           >
             Larger
