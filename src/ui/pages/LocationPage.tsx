@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { useApp } from '../../app/context'
+import { useApp, useSetting } from '../../app/context'
 import {
   createLocation,
   deleteLocation,
@@ -221,40 +221,7 @@ export function LocationPage() {
         </Button>
 
         {location ? (
-          <>
-            <SectionTitle>Parts here</SectionTitle>
-            {stock.length === 0 ? (
-              <p className="text-sm text-muted">Nothing is stored directly in this place.</p>
-            ) : (
-              <Card>
-                <ul className="divide-y divide-line">
-                  {stock.map((s) => {
-                    const part = inv.partById.get(s.partId)
-                    return (
-                      <li key={s.id} className="flex items-center gap-2 px-3 py-2">
-                        <Link to={`/part/${s.partId}`} className="min-w-0 flex-1 hover:text-accent">
-                          <span className="block font-medium break-words">
-                            {part ? partTitle(part) : 'Unknown part'}
-                          </span>
-                          {part?.mpn && part.description ? (
-                            <span className="block truncate text-sm text-muted">{part.description}</span>
-                          ) : null}
-                        </Link>
-                        <span className="text-sm text-muted">{formatQty(s)}</span>
-                        <Button
-                          small
-                          variant="ghost"
-                          icon="edit"
-                          aria-label={`Change the bag of ${part ? partTitle(part) : 'this part'}`}
-                          onClick={() => setEditingStock(s)}
-                        />
-                      </li>
-                    )
-                  })}
-                </ul>
-              </Card>
-            )}
-          </>
+          <PartsHere stock={stock} inv={inv} onEdit={setEditingStock} />
         ) : null}
       </div>
 
@@ -279,6 +246,125 @@ export function LocationPage() {
       {editingStock ? (
         <StockEditor stock={editingStock} onClose={() => setEditingStock(undefined)} />
       ) : null}
+    </>
+  )
+}
+
+type PartsHereView = 'list' | 'thumbnails'
+
+function PartsHere({
+  stock,
+  inv,
+  onEdit,
+}: {
+  stock: Stock[]
+  inv: Inventory
+  onEdit: (stock: Stock) => void
+}) {
+  const [stored, setStored] = useSetting<PartsHereView>('ui.partsHereView', 'list')
+  const view: PartsHereView = stored === 'thumbnails' ? 'thumbnails' : 'list'
+  return (
+    <>
+      <div className="mt-6 mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Parts here</h2>
+        {stock.length > 0 ? (
+          <div role="radiogroup" aria-label="How to show the parts here" className="flex rounded-lg bg-raised p-0.5">
+            {(
+              [
+                ['list', 'List'],
+                ['thumbnails', 'Thumbnails'],
+              ] as const
+            ).map(([id, label]) => {
+              const selected = view === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={
+                    selected
+                      ? 'min-h-9 rounded-md bg-accent px-2.5 text-sm font-medium text-on-accent'
+                      : 'min-h-9 rounded-md px-2.5 text-sm text-muted'
+                  }
+                  onClick={() => void setStored(id)}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+      </div>
+      {stock.length === 0 ? (
+        <p className="text-sm text-muted">Nothing is stored directly in this place.</p>
+      ) : view === 'list' ? (
+        <Card>
+          <ul className="divide-y divide-line">
+            {stock.map((s) => {
+              const part = inv.partById.get(s.partId)
+              const title = part ? partTitle(part) : 'Unknown part'
+              return (
+                <li key={s.id} className="flex items-center gap-2 px-3 py-2">
+                  <Link to={`/part/${s.partId}`} className="min-w-0 flex-1 hover:text-accent">
+                    <span className="block font-medium break-words">{title}</span>
+                    {part?.mpn && part.description ? (
+                      <span className="block truncate text-sm text-muted">{part.description}</span>
+                    ) : null}
+                  </Link>
+                  <span className="text-sm text-muted">{formatQty(s)}</span>
+                  <Button
+                    small
+                    variant="ghost"
+                    icon="edit"
+                    aria-label={`Change the bag of ${title}`}
+                    onClick={() => onEdit(s)}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        </Card>
+      ) : (
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {stock.map((s) => {
+            const part = inv.partById.get(s.partId)
+            const title = part ? partTitle(part) : 'Unknown part'
+            const thumb = part?.imageBlob ?? s.labelPhotoBlob
+            return (
+              <li key={s.id} className="overflow-hidden rounded-xl border border-line bg-surface">
+                <Link to={`/part/${s.partId}`} className="block hover:text-accent">
+                  <div className="relative aspect-square bg-raised">
+                    {thumb ? (
+                      <Photo
+                        hash={thumb}
+                        alt={`Photo of ${title}`}
+                        fit="contain"
+                        className="absolute inset-0 size-full"
+                      />
+                    ) : (
+                      <span className="flex size-full items-center justify-center text-muted">
+                        <Icon name="box" className="size-8" />
+                      </span>
+                    )}
+                  </div>
+                  <span className="block px-2 pt-2 text-sm font-medium break-words">{title}</span>
+                </Link>
+                <div className="flex items-center justify-between gap-1 px-2 pb-2">
+                  <span className="text-sm text-muted">{formatQty(s) || 'not counted'}</span>
+                  <Button
+                    small
+                    variant="ghost"
+                    icon="edit"
+                    aria-label={`Change the bag of ${title}`}
+                    onClick={() => onEdit(s)}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </>
   )
 }

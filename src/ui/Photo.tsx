@@ -8,12 +8,15 @@ export function Photo({
   alt,
   className,
   zoomable,
+  fit = 'cover',
 }: {
   hash: string | undefined
   alt: string
   className?: string
   /** Open the photo full size when tapped. */
   zoomable?: boolean
+  /** cover fills the frame; contain shows the whole photo. */
+  fit?: 'cover' | 'contain'
 }) {
   const url = useBlobUrl(hash)
   const [zoomed, setZoomed] = useState(false)
@@ -27,7 +30,9 @@ export function Photo({
       />
     )
   }
-  const image = <img src={url} alt={alt} className={cx('object-cover', className)} />
+  const image = (
+    <img src={url} alt={alt} className={cx(fit === 'contain' ? 'object-contain' : 'object-cover', className)} />
+  )
   if (!zoomable) return image
   return (
     <>
