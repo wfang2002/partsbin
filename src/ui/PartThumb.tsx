@@ -1,10 +1,18 @@
-import { Icon } from './kit'
+import { Icon, cx } from './kit'
 import { Photo } from './Photo'
 
 /** The small photo at the left of a part row. */
-export function PartThumb({ hash, alt }: { hash: string | undefined; alt: string }) {
+export function PartThumb({
+  hash,
+  alt,
+  className,
+}: {
+  hash: string | undefined
+  alt: string
+  className?: string
+}) {
   return (
-    <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-raised">
+    <span className={cx('relative shrink-0 overflow-hidden rounded-lg bg-raised', className ?? 'size-14')}>
       {hash ? (
         <Photo hash={hash} alt={alt} fit="contain" className="absolute inset-0 size-full" />
       ) : (

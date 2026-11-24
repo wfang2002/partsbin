@@ -13,7 +13,6 @@ import {
   formatQty,
   locationPath,
   partPhotoHash,
-  partSubtitle,
   partTitle,
   withDescendants,
   type Inventory,
@@ -352,24 +351,40 @@ function PartsHere({
           <section key={group.key} className={group.label ? 'mt-3' : undefined}>
             {group.label ? <h3 className="mb-2 text-sm font-medium text-muted">{group.label}</h3> : null}
             {view === 'list' ? (
-              <ul className="space-y-2">
+              <ul className="space-y-1">
                 {group.items.map((s) => {
                   const part = inv.partById.get(s.partId)
                   const title = part ? partTitle(part) : 'Unknown part'
-                  const subtitle = part ? partSubtitle(part) : ''
+                  const description = part?.mpn ? part.description : undefined
                   return (
-                    <li key={s.id} className="flex items-stretch gap-2">
+                    <li key={s.id} className="flex items-center gap-1">
                       <Link
                         to={`/part/${s.partId}`}
-                        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-2 py-1.5 hover:border-accent"
                       >
-                        <PartThumb hash={partPhotoHash(part, [s])} alt={`Photo of ${title}`} />
+                        <PartThumb
+                          hash={partPhotoHash(part, [s])}
+                          alt={`Photo of ${title}`}
+                          className="size-10"
+                        />
                         <span className="min-w-0 flex-1">
-                          <span className="block font-medium break-words">{title}</span>
-                          {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
-                          <span className="mt-1 block text-sm text-muted">
-                            {formatQty(s) || 'not counted'}
+                          <span className="flex items-baseline gap-2">
+                            <span
+                              className={
+                                description
+                                  ? 'min-w-0 flex-1 truncate font-medium'
+                                  : 'line-clamp-2 min-w-0 flex-1 font-medium'
+                              }
+                            >
+                              {title}
+                            </span>
+                            <span className="shrink-0 text-sm text-muted">
+                              {formatQty(s) || 'not counted'}
+                            </span>
                           </span>
+                          {description ? (
+                            <span className="line-clamp-2 text-sm text-muted">{description}</span>
+                          ) : null}
                         </span>
                       </Link>
                       <Button
