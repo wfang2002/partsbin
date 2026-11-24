@@ -356,11 +356,15 @@ function PartsHere({
                   const part = inv.partById.get(s.partId)
                   const title = part ? partTitle(part) : 'Unknown part'
                   const description = part?.mpn ? part.description : undefined
+                  const count = formatQty(s) || 'not counted'
                   return (
-                    <li key={s.id} className="flex items-center gap-1">
+                    <li
+                      key={s.id}
+                      className="flex items-center gap-2 rounded-xl border border-line bg-surface px-2 py-1.5"
+                    >
                       <Link
                         to={`/part/${s.partId}`}
-                        className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-2 py-1.5 hover:border-accent"
+                        className="flex min-w-0 flex-1 items-center gap-2 hover:text-accent"
                       >
                         <PartThumb
                           hash={partPhotoHash(part, [s])}
@@ -368,33 +372,26 @@ function PartsHere({
                           className="size-10"
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-2">
-                            <span
-                              className={
-                                description
-                                  ? 'min-w-0 flex-1 truncate font-medium'
-                                  : 'line-clamp-2 min-w-0 flex-1 font-medium'
-                              }
-                            >
-                              {title}
-                            </span>
-                            <span className="shrink-0 text-sm text-muted">
-                              {formatQty(s) || 'not counted'}
-                            </span>
+                          <span
+                            className={
+                              description ? 'block truncate font-medium' : 'line-clamp-2 font-medium'
+                            }
+                          >
+                            {title}
                           </span>
                           {description ? (
                             <span className="line-clamp-2 text-sm text-muted">{description}</span>
                           ) : null}
                         </span>
                       </Link>
-                      <Button
-                        small
-                        variant="ghost"
-                        icon="edit"
-                        aria-label={`Change the bag of ${title}`}
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md px-1.5 py-1 text-sm text-muted hover:bg-raised hover:text-accent"
+                        aria-label={`Edit the count and place of ${title}, currently ${count}`}
                         onClick={() => onEdit(s)}
-                        className="self-center"
-                      />
+                      >
+                        {count}
+                      </button>
                     </li>
                   )
                 })}
