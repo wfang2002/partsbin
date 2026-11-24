@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useApp } from '../../app/context'
 import { createProject, deleteProject, updateProject } from '../../domain/actions'
-import { formatQty, partTitle, pathLabel } from '../../domain/inventory'
+import { formatQty, partPhotoHash, partTitle, pathLabel } from '../../domain/inventory'
 import { buildPickList, type PickLine } from '../../domain/picklist'
 import type { BomLine, Project } from '../../domain/types'
 import { parseBom } from '../../import/bom'
 import { pickFile } from '../../platform/files'
 import { search } from '../../search'
 import { LocationSelect } from '../LocationSelect'
+import { PartThumb } from '../PartThumb'
 import {
   Banner,
   Button,
@@ -324,24 +325,30 @@ function PickRow({
         {[`need ${pick.line.qty}`, have, pick.line.refs].filter(Boolean).join(' · ')}
       </p>
       {pick.part ? (
-        <div className="mt-2 space-y-1 text-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link to={`/part/${pick.part.id}`} className="text-accent">
-              {partTitle(pick.part)}
-            </Link>
-            {linked ? (
-              <Button small variant="ghost" onClick={() => onLink(undefined)}>
-                Not this part
-              </Button>
-            ) : null}
-          </div>
-          {pick.stock.map((s) => (
-            <div key={s.id} className="flex items-baseline gap-2">
-              <Icon name="box" className="size-4 translate-y-0.5 text-accent" />
-              <span className="min-w-0 flex-1">{pathLabel(inv, s.locationId)}</span>
-              <span className="text-muted">{formatQty(s) || 'not counted'}</span>
+        <div className="mt-2 flex items-start gap-3">
+          <PartThumb
+            hash={partPhotoHash(pick.part, pick.stock)}
+            alt={`Photo of ${partTitle(pick.part)}`}
+          />
+          <div className="min-w-0 flex-1 space-y-1 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to={`/part/${pick.part.id}`} className="text-accent">
+                {partTitle(pick.part)}
+              </Link>
+              {linked ? (
+                <Button small variant="ghost" onClick={() => onLink(undefined)}>
+                  Not this part
+                </Button>
+              ) : null}
             </div>
-          ))}
+            {pick.stock.map((s) => (
+              <div key={s.id} className="flex items-baseline gap-2">
+                <Icon name="box" className="size-4 translate-y-0.5 text-accent" />
+                <span className="min-w-0 flex-1">{pathLabel(inv, s.locationId)}</span>
+                <span className="text-muted">{formatQty(s) || 'not counted'}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : pick.suggestion ? (
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">

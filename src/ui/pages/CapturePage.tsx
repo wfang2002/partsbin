@@ -8,6 +8,7 @@ import { applyReading, newInboxItem, type InboxItem } from '../../domain/inbox'
 import {
   findPartByMpn,
   formatQty,
+  partPhotoHash,
   partTitle,
   pathLabel,
 } from '../../domain/inventory'
@@ -27,6 +28,7 @@ import {
   mergeIntoDraft,
   type PartDraft,
 } from '../PartForm'
+import { PartThumb } from '../PartThumb'
 import { QuantityInput, type Quantity } from '../StockEditor'
 import { Photo, ZoomablePhoto } from '../Photo'
 import {
@@ -624,18 +626,29 @@ export function CapturePage() {
         {session.length > 0 && !capture ? (
           <>
             <SectionTitle>Put away just now</SectionTitle>
-            <Card>
-              <ul className="divide-y divide-line">
-                {session.map((entry, index) => (
+            <ul className="space-y-2">
+              {session.map((entry, index) => {
+                const part = inv.partById.get(entry.partId)
+                const bags = inv.stockByPart.get(entry.partId) ?? []
+                return (
                   <li key={index}>
-                    <Link to={`/part/${entry.partId}`} className="block px-3 py-2 hover:text-accent">
-                      <span className="block font-medium break-words">{entry.title}</span>
-                      <span className="block text-sm text-muted">{entry.where}</span>
+                    <Link
+                      to={`/part/${entry.partId}`}
+                      className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
+                    >
+                      <PartThumb
+                        hash={partPhotoHash(part, bags)}
+                        alt={`Photo of ${entry.title}`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium break-words">{entry.title}</span>
+                        <span className="mt-1 block text-sm text-muted">{entry.where}</span>
+                      </span>
                     </Link>
                   </li>
-                ))}
-              </ul>
-            </Card>
+                )
+              })}
+            </ul>
           </>
         ) : null}
       </div>

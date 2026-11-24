@@ -2,6 +2,7 @@ import { HashRouter, NavLink, Outlet, Route, Routes } from 'react-router'
 import { useApp, useSyncState } from './app/context'
 import { CameraDialog } from './ui/CameraDialog'
 import { Icon, ToastProvider, cx, type IconName } from './ui/kit'
+import { useSwipeBack } from './ui/useSwipeBack'
 import { CapturePage } from './ui/pages/CapturePage'
 import { LocationPage } from './ui/pages/LocationPage'
 import { PartPage } from './ui/pages/PartPage'
@@ -43,6 +44,7 @@ export default function App() {
 
 function Shell() {
   const { loaded } = useApp()
+  const mainRef = useSwipeBack<HTMLElement>()
   return (
     <div className="flex h-full flex-col pt-[env(safe-area-inset-top)] lg:flex-row lg:pt-0 print:block print:h-auto">
       <nav
@@ -70,7 +72,7 @@ function Shell() {
         <div className="hidden flex-1 lg:block" />
         <SyncBadge />
       </nav>
-      <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
+      <main ref={mainRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto print:overflow-visible">
         <div className="mx-auto max-w-3xl">{loaded ? <Outlet /> : null}</div>
       </main>
     </div>

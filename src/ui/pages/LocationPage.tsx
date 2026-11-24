@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useApp, useSetting } from '../../app/context'
 import {
@@ -12,25 +12,27 @@ import {
 import {
   formatQty,
   locationPath,
+  partPhotoHash,
+  partSubtitle,
   partTitle,
   withDescendants,
   type Inventory,
 } from '../../domain/inventory'
+import { compareName, groupByCategory, sortByName, type SortDir } from '../../domain/order'
 import { LOCATION_KINDS, type Location, type LocationKind, type Stock } from '../../domain/types'
 import { toJpeg } from '../../platform/image'
 import { scanner } from '../../scan'
 import { LocationSelect, scanLocationSticker } from '../LocationSelect'
+import { PartThumb } from '../PartThumb'
 import { Photo } from '../Photo'
 import { StockEditor } from '../StockEditor'
 import {
   Button,
-  Card,
   EmptyState,
   Field,
   Icon,
   Input,
   PageHeader,
-  SectionTitle,
   Select,
   Sheet,
   TextArea,
@@ -70,6 +72,8 @@ export function LocationPage() {
   const [editing, setEditing] = useState(false)
   const [editingStock, setEditingStock] = useState<Stock>()
   const [photoBusy, setPhotoBusy] = useState(false)
+  const [storedBoxSort, setBoxSort] = useSetting<SortDir>('ui.boxSort', 'asc')
+  const boxSort: SortDir = storedBoxSort === 'desc' ? 'desc' : 'asc'
 
   if (locId && !location) {
     return (
@@ -83,6 +87,7 @@ export function LocationPage() {
   }
 
   const children = inv.childrenOf.get(location?.id ?? null) ?? []
+  const orderedChildren = sortByName(children, (child) => child.name, boxSort)
   const stock = location ? (inv.stockByLocation.get(location.id) ?? []) : []
   const path = location ? locationPath(inv, location.id) : []
   const newKind = childKind(location)
@@ -181,14 +186,37 @@ export function LocationPage() {
           </>
         ) : null}
 
-        {location ? <SectionTitle>Inside</SectionTitle> : null}
+        {location || children.length > 0 ? (
+          <div
+            className={
+              location
+                ? 'mt-6 mb-2 flex flex-wrap items-center justify-between gap-2'
+                : 'mb-2 flex flex-wrap items-center justify-end gap-2'
+            }
+          >
+            {location ? (
+              <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Inside</h2>
+            ) : null}
+            {children.length > 0 ? (
+              <Segmented
+                label="Sort places by name"
+                value={boxSort}
+                options={[
+                  { id: 'asc', label: 'A–Z' },
+                  { id: 'desc', label: 'Z–A' },
+                ]}
+                onChange={setBoxSort}
+              />
+            ) : null}
+          </div>
+        ) : null}
         {children.length === 0 && !location ? (
           <EmptyState title="No places yet">
             Add the rooms where you keep parts, then racks, shelves and boxes inside them.
           </EmptyState>
         ) : null}
         <ul className="space-y-2">
-          {children.map((child) => {
+          {orderedChildren.map((child) => {
             const inside = inv.childrenOf.get(child.id)?.length ?? 0
             const bags = bagCount(inv, child.id)
             return (
@@ -263,109 +291,179 @@ function PartsHere({
 }) {
   const [stored, setStored] = useSetting<PartsHereView>('ui.partsHereView', 'list')
   const view: PartsHereView = stored === 'thumbnails' ? 'thumbnails' : 'list'
+  const [storedSort, setSort] = useSetting<SortDir>('ui.partsSort', 'asc')
+  const sort: SortDir = storedSort === 'desc' ? 'desc' : 'asc'
+  const [storedGroup, setGroup] = useSetting<boolean>('ui.partsGroupByCategory', false)
+  const grouped = storedGroup === true
+  const groups = useMemo(() => {
+    const compare = (a: Stock, b: Stock) => {
+      const name = (s: Stock) => {
+        const part = inv.partById.get(s.partId)
+        return part ? partTitle(part) : 'Unknown part'
+      }
+      return compareName(name(a), name(b), sort) || a.id.localeCompare(b.id)
+    }
+    if (!grouped) return [{ key: 'all', label: '', items: [...stock].sort(compare) }]
+    return groupByCategory(stock, (s) => inv.partById.get(s.partId)?.category, compare)
+  }, [grouped, inv, sort, stock])
   return (
     <>
-      <div className="mt-6 mb-2 flex items-center justify-between gap-2">
+      <div className="mt-6 mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Parts here</h2>
         {stock.length > 0 ? (
-          <div role="radiogroup" aria-label="How to show the parts here" className="flex rounded-lg bg-raised p-0.5">
-            {(
-              [
-                ['list', 'List'],
-                ['thumbnails', 'Thumbnails'],
-              ] as const
-            ).map(([id, label]) => {
-              const selected = view === id
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  className={
-                    selected
-                      ? 'min-h-9 rounded-md bg-accent px-2.5 text-sm font-medium text-on-accent'
-                      : 'min-h-9 rounded-md px-2.5 text-sm text-muted'
-                  }
-                  onClick={() => void setStored(id)}
-                >
-                  {label}
-                </button>
-              )
-            })}
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented
+              label="Sort parts by part number"
+              value={sort}
+              options={[
+                { id: 'asc', label: 'A–Z' },
+                { id: 'desc', label: 'Z–A' },
+              ]}
+              onChange={setSort}
+            />
+            <button
+              type="button"
+              aria-pressed={grouped}
+              className={
+                grouped
+                  ? 'min-h-9 rounded-lg bg-accent px-2.5 text-sm font-medium text-on-accent'
+                  : 'min-h-9 rounded-lg bg-raised px-2.5 text-sm text-muted'
+              }
+              onClick={() => void setGroup(!grouped)}
+            >
+              Category
+            </button>
+            <Segmented
+              label="How to show the parts here"
+              value={view}
+              options={[
+                { id: 'list', label: 'List' },
+                { id: 'thumbnails', label: 'Thumbnails' },
+              ]}
+              onChange={setStored}
+            />
           </div>
         ) : null}
       </div>
       {stock.length === 0 ? (
         <p className="text-sm text-muted">Nothing is stored directly in this place.</p>
-      ) : view === 'list' ? (
-        <Card>
-          <ul className="divide-y divide-line">
-            {stock.map((s) => {
-              const part = inv.partById.get(s.partId)
-              const title = part ? partTitle(part) : 'Unknown part'
-              return (
-                <li key={s.id} className="flex items-center gap-2 px-3 py-2">
-                  <Link to={`/part/${s.partId}`} className="min-w-0 flex-1 hover:text-accent">
-                    <span className="block font-medium break-words">{title}</span>
-                    {part?.mpn && part.description ? (
-                      <span className="block truncate text-sm text-muted">{part.description}</span>
-                    ) : null}
-                  </Link>
-                  <span className="text-sm text-muted">{formatQty(s)}</span>
-                  <Button
-                    small
-                    variant="ghost"
-                    icon="edit"
-                    aria-label={`Change the bag of ${title}`}
-                    onClick={() => onEdit(s)}
-                  />
-                </li>
-              )
-            })}
-          </ul>
-        </Card>
       ) : (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-          {stock.map((s) => {
-            const part = inv.partById.get(s.partId)
-            const title = part ? partTitle(part) : 'Unknown part'
-            const thumb = part?.imageBlob ?? s.labelPhotoBlob
-            return (
-              <li key={s.id} className="overflow-hidden rounded-xl border border-line bg-surface">
-                <Link to={`/part/${s.partId}`} className="block hover:text-accent">
-                  <div className="relative aspect-square bg-raised">
-                    {thumb ? (
-                      <Photo
-                        hash={thumb}
-                        alt={`Photo of ${title}`}
-                        fit="contain"
-                        className="absolute inset-0 size-full"
+        groups.map((group) => (
+          <section key={group.key} className={group.label ? 'mt-3' : undefined}>
+            {group.label ? <h3 className="mb-2 text-sm font-medium text-muted">{group.label}</h3> : null}
+            {view === 'list' ? (
+              <ul className="space-y-2">
+                {group.items.map((s) => {
+                  const part = inv.partById.get(s.partId)
+                  const title = part ? partTitle(part) : 'Unknown part'
+                  const subtitle = part ? partSubtitle(part) : ''
+                  return (
+                    <li key={s.id} className="flex items-stretch gap-2">
+                      <Link
+                        to={`/part/${s.partId}`}
+                        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
+                      >
+                        <PartThumb hash={partPhotoHash(part, [s])} alt={`Photo of ${title}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium break-words">{title}</span>
+                          {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
+                          <span className="mt-1 block text-sm text-muted">
+                            {formatQty(s) || 'not counted'}
+                          </span>
+                        </span>
+                      </Link>
+                      <Button
+                        small
+                        variant="ghost"
+                        icon="edit"
+                        aria-label={`Change the bag of ${title}`}
+                        onClick={() => onEdit(s)}
+                        className="self-center"
                       />
-                    ) : (
-                      <span className="flex size-full items-center justify-center text-muted">
-                        <Icon name="box" className="size-8" />
-                      </span>
-                    )}
-                  </div>
-                  <span className="block px-2 pt-2 text-sm font-medium break-words">{title}</span>
-                </Link>
-                <div className="flex items-center justify-between gap-1 px-2 pb-2">
-                  <span className="text-sm text-muted">{formatQty(s) || 'not counted'}</span>
-                  <Button
-                    small
-                    variant="ghost"
-                    icon="edit"
-                    aria-label={`Change the bag of ${title}`}
-                    onClick={() => onEdit(s)}
-                  />
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {group.items.map((s) => {
+                  const part = inv.partById.get(s.partId)
+                  const title = part ? partTitle(part) : 'Unknown part'
+                  const thumb = partPhotoHash(part, [s])
+                  return (
+                    <li key={s.id} className="overflow-hidden rounded-xl border border-line bg-surface">
+                      <Link to={`/part/${s.partId}`} className="block hover:text-accent">
+                        <div className="relative aspect-square bg-raised">
+                          {thumb ? (
+                            <Photo
+                              hash={thumb}
+                              alt={`Photo of ${title}`}
+                              fit="contain"
+                              className="absolute inset-0 size-full"
+                            />
+                          ) : (
+                            <span className="flex size-full items-center justify-center text-muted">
+                              <Icon name="box" className="size-8" />
+                            </span>
+                          )}
+                        </div>
+                        <span className="block px-2 pt-2 text-sm font-medium break-words">{title}</span>
+                      </Link>
+                      <div className="flex items-center justify-between gap-1 px-2 pb-2">
+                        <span className="text-sm text-muted">{formatQty(s) || 'not counted'}</span>
+                        <Button
+                          small
+                          variant="ghost"
+                          icon="edit"
+                          aria-label={`Change the bag of ${title}`}
+                          onClick={() => onEdit(s)}
+                        />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        ))
       )}
     </>
+  )
+}
+
+function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: readonly { id: T; label: string }[]
+  onChange: (id: T) => void
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex rounded-lg bg-raised p-0.5">
+      {options.map((option) => {
+        const selected = value === option.id
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            className={
+              selected
+                ? 'min-h-9 rounded-md bg-accent px-2.5 text-sm font-medium text-on-accent'
+                : 'min-h-9 rounded-md px-2.5 text-sm text-muted'
+            }
+            onClick={() => onChange(option.id)}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

@@ -139,6 +139,19 @@ export function partTitle(part: Part): string {
   return part.mpn || part.description || 'Unnamed part'
 }
 
+/** Manufacturer and description shown under the part number. */
+export function partSubtitle(part: Part): string {
+  return [part.manufacturer, part.mpn ? part.description : undefined].filter(Boolean).join(' · ')
+}
+
+/** Part picture, or a bag photo when the part has none. */
+export function partPhotoHash(
+  part: Pick<Part, 'imageBlob'> | undefined,
+  bags: Pick<Stock, 'labelPhotoBlob'>[],
+): string | undefined {
+  return part?.imageBlob ?? bags.find((bag) => bag.labelPhotoBlob)?.labelPhotoBlob
+}
+
 export function formatQty(stock: Stock): string {
   if (typeof stock.qty === 'number') return String(stock.qty)
   if (stock.qtyApprox) return stock.qtyApprox

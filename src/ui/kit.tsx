@@ -297,6 +297,7 @@ export function Sheet({
   }, [onClose])
   return (
     <div
+      data-sheet
       className="no-print fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center sm:p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()

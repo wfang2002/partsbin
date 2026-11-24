@@ -5,6 +5,8 @@ import { useApp } from '../../app/context'
 import { loadAi } from '../../app/services'
 import {
   formatQty,
+  partPhotoHash,
+  partSubtitle,
   partTitle,
   pathLabel,
   type Inventory,
@@ -13,7 +15,7 @@ import type { Part } from '../../domain/types'
 import { scanner } from '../../scan'
 import { parseLabel, parseLocationQr } from '../../scan/labelParsers'
 import { search } from '../../search'
-import { Photo } from '../Photo'
+import { PartThumb } from '../PartThumb'
 import {
   Banner,
   Button,
@@ -190,29 +192,13 @@ export function PartResult({
 }) {
   const stock = inv.stockByPart.get(part.id) ?? []
   const title = partTitle(part)
-  const thumb = part.imageBlob ?? stock.find((s) => s.labelPhotoBlob)?.labelPhotoBlob
-  const subtitle = [part.manufacturer, part.mpn ? part.description : undefined]
-    .filter(Boolean)
-    .join(' · ')
+  const subtitle = partSubtitle(part)
   return (
     <Link
       to={`/part/${part.id}`}
       className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
     >
-      <span className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-raised">
-        {thumb ? (
-          <Photo
-            hash={thumb}
-            alt={`Photo of ${title}`}
-            fit="contain"
-            className="absolute inset-0 size-full"
-          />
-        ) : (
-          <span className="flex size-full items-center justify-center text-muted">
-            <Icon name="box" className="size-6" />
-          </span>
-        )}
-      </span>
+      <PartThumb hash={partPhotoHash(part, stock)} alt={`Photo of ${title}`} />
       <span className="min-w-0 flex-1">
         <span className="block font-medium break-words">{title}</span>
         {subtitle ? <span className="block text-sm text-muted">{subtitle}</span> : null}
@@ -274,13 +260,20 @@ function Overview({ inv }: { inv: Inventory }) {
             <li key={s.id}>
               <Link
                 to={`/part/${part.id}`}
-                className="flex items-baseline gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
+                className="flex items-start gap-3 rounded-xl border border-line bg-surface p-3 hover:border-accent"
               >
+                <PartThumb
+                  hash={partPhotoHash(part, [s])}
+                  alt={`Photo of ${partTitle(part)}`}
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium break-words">{partTitle(part)}</span>
-                  <span className="block text-sm text-muted">{pathLabel(inv, s.locationId)}</span>
+                  <span className="mt-1 flex items-baseline gap-2 text-sm">
+                    <Icon name="box" className="size-4 translate-y-0.5 text-accent" />
+                    <span className="min-w-0 flex-1">{pathLabel(inv, s.locationId)}</span>
+                    <span className="text-muted">{formatQty(s) || 'not counted'}</span>
+                  </span>
                 </span>
-                <span className="text-sm text-muted">{formatQty(s)}</span>
               </Link>
             </li>
           ) : null
